@@ -1,21 +1,32 @@
 package com.klef.jfsd.spd.tourisum.model;
 
 import jakarta.persistence.Column;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+// these dependencies are adding for changing object to String
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+
+
 @Entity
 @Table(name="Admin")
-public class Admin {
+public class Admin implements java.io.Serializable {
+	  private static final long serialVersionUID = 1L;
 	 @Id
 	 @GeneratedValue(strategy = GenerationType.IDENTITY) // you can take this manually also through form
 	 @Column(name="id")
+	 @JsonProperty
 	 private int id;
 	@Column(name="email",nullable=false,unique = true,length = 50)
+	@JsonProperty
 	 private String email;
 	 @Column(name="password",nullable=false,length = 50)
+	 @JsonProperty
 	 private String password;
 	 
 	public int getId() {

@@ -36,6 +36,14 @@ import com.klef.jfsd.spd.tourisum.repository.UserRepository;
 import com.klef.jfsd.spd.tourisum.service.AdminService;
 import com.klef.jfsd.spd.tourisum.service.HotelAdminService;
 import com.klef.jfsd.spd.tourisum.service.UserService;
+// for JWT
+import com.klef.jfsd.spd.tourisum.controller.JwtStorage;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
+import java.util.HashMap;
+
 
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.HttpServletRequest;
@@ -66,43 +74,61 @@ public class AdminController {
 	 private JavaMailSender mailSender;
 	 
 		@PostMapping("/login")
-		public int adminlogin(@RequestBody Admin a1,HttpServletRequest request ) {
+		public Map<String,String> login(@RequestBody Admin a1,HttpServletRequest request ) throws JsonProcessingException {
+			
 			 HttpSession session = request.getSession();
 			 User user1 = userservice.checkUserLogin(a1.getEmail(), a1.getPassword());
 				if(user1 != null) {
-					session.removeAttribute("hoteladmindetails");
-					session.removeAttribute("admindetails");
-		        	session.setAttribute("user",user1);
-		        	session.setMaxInactiveInterval(3600);
-		    		return 2;
+					
+					// if user login is success status is 11
+					Map<String,String> map1 = JwtStorage.storeObject(user1);
+					map1.put("status", "11");
+					return map1;
+		        	
+		    		
 		    	}
 				 HotelAdmin ha =  hoteladminservice.checkHotelAdminLogin(a1.getEmail(), a1.getPassword());	
 				 if(ha!=null) {
 					 if(ha.getStatus() == 0) {
-					 return 12;   // waiting for admin aprovel
+					 //return 21;   // waiting for admin aprovel   that ststus is 21
+						
+						 Map<String,String> map1 = new HashMap<String,String>();
+						 map1.put("status","21");
+						 return map1;
+						
 					 }
 				 }
 					if(ha != null){
-						session.removeAttribute("admindetails");
-						session.removeAttribute("user");
-						session.setAttribute("hoteladmindetails", ha);
-						session.setMaxInactiveInterval(3600);
-						return 1;
+						
+					
+						Map<String,String> map1 = JwtStorage.storeObject(ha);
+					
+						map1.put("status", "12");
+						return map1;
 					}
 			 Admin admin = adminservice.checkAdminLogin(a1.getEmail(), a1.getPassword());
 			 if(admin != null){
-					session.removeAttribute("user");
-					session.removeAttribute("hoteladmindetails");
-					session.setAttribute("admindetails", admin);
-					session.setMaxInactiveInterval(3600);
-					return 0;
+				 
+					
+					
+					Map<String,String> map1 = JwtStorage.storeObject(admin);
+					// if admin login is success status is 13
+					map1.put("status", "13");
+					return map1;
+				
+					
 				}
-				return 3;
+				//return 3;  // if user not exists
+			 Map<String,String> map1 = new HashMap<String,String>();
+			// 3 for invalid credentials
+			 map1.put("status","3");
+			 return map1;
 		}	 
 	 
 	@GetMapping("/checkadminsession")
     public Admin checkadminsession(HttpServletRequest request) {
     	HttpSession session = request.getSession();
+    
     	Admin a1 = (Admin)session.getAttribute("admindetails");
     	if(a1!=null) {
     		session.setMaxInactiveInterval(3600);
@@ -111,10 +137,11 @@ public class AdminController {
     		return null;
     	}
     }
-	@GetMapping("/checkadminsession1")
-    public Admin checkadminsession1(HttpServletRequest request) {
-    	HttpSession session = request.getSession();
-    	Admin a1 = (Admin)session.getAttribute("admindetails");
+	@PostMapping("/checkadminsession1")
+    public Admin checkadminsession1(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException {
+		Map<String, String> map = (Map<String, String>) obj; // jwtToken credeitails will get here
+   	 ObjectMapper mapper = new ObjectMapper();
+      Admin a1 =  (Admin)mapper.readValue((String)JwtStorage.getObject(map), Admin.class);
     	if(a1!=null) {
     		return a1;
     	}else {
@@ -124,69 +151,101 @@ public class AdminController {
 	
 	 
 	@PostMapping("/insertLocation")
-	public Integer insertLocation(@RequestBody touristSpot tp ,HttpServletRequest request) {
-		if(checkadminsession1(request) == null ) {
+	public Integer insertLocation(@RequestBody Object obj ,HttpServletRequest request) throws JsonMappingException, JsonProcessingException {
+		
+		Map<String,Object> map = (Map<String,Object>)obj;
+		
+		if(checkadminsession1(map.get("customerdata")) == null ) {
 			return null;
 		}
+		touristSpot tp = new touristSpot();
+		tp.setCity((String)map.get("city"));
+		tp.setCountry((String)map.get("country"));
+		tp.setSpotimageinbytes((String)map.get("spotimageinbytes"));
+		tp.setSpotname((String)map.get("spotname"));
+		tp.setState((String)map.get("state"));
 		adminservice.insertLocation(tp);		
 		return 1;
 	}
 	
-	@GetMapping("/getLocations")
-	public List<touristSpot> getLocations(HttpServletRequest request){
-		if(checkadminsession1(request) == null ) {
+	@PostMapping("/getLocations")
+	public List<touristSpot> getLocations(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException{
+		if(checkadminsession1(obj) == null ) {
 			return null;
 		}
 		return adminservice.getLocations();
 	}
 	
 	@PostMapping("/deletespot")
-	public Integer deletespot(@RequestBody touristSpot spot,HttpServletRequest request) {
-		if(checkadminsession1(request) == null ) {
+	public Integer deletespot(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException {
+		Map<String,Object> map = (Map<String,Object>)obj;
+		if(checkadminsession1((Map<String,String>)map.get("customerdata")) == null ) {
 			return null;
 		}
-		return (Integer)adminservice.deleteSpotById(spot.getId());
-		//
+		return (Integer)adminservice.deleteSpotById((Integer)map.get("id"));
+		
 	}
 	
-	@GetMapping("/adminrequests")
-	public List<TravelPlanRequest> myrequests(HttpServletRequest request) { 
-		if(checkadminsession1(request) == null ) {
+	@PostMapping("/adminrequests")
+	public List<TravelPlanRequest> myrequests(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		
+		if(checkadminsession1(obj) == null ) {
 			return null;
 		}
 		return travelplanrequestrepository.findAll();
 		//return null;
 	}
+	
 	@PostMapping("/responsefromadmin")
-	public String responcefromadmin(@RequestBody TravelPlanRequest t1,  HttpServletRequest request) { 
-		
-		if(checkadminsession1(request) == null ) {
+	public String responcefromadmin(@RequestBody Object obj,  HttpServletRequest request) throws JsonMappingException, JsonProcessingException { 		
+		Map<String,Object> map = (Map<String,Object>)obj;
+		if(checkadminsession1(map.get("customerdata")) == null ) {
 			return null;
 		}
-		System.out.println(t1.toString());	
-		if(t1.getAdminstatus() == 1) {
+		TravelPlanRequest t1 = new TravelPlanRequest();		
+		t1.setAdminstatus((Integer)map.get("adminstatus"));
+		t1.setRequestid((Integer)map.get("requestid"));
+		if(t1.getAdminstatus() == 1) {			
+			t1.setAmount((Integer)map.get("amount"));
+			t1.setTgname((String)map.get("tgname"));
+			t1.setTgcontact((Long)map.get("tgcontact"));
 		travelplanrequestrepository.requestStatusBasedOnReqid(t1.getAdminstatus(),t1.getAmount(),t1.getTgname(),t1.getTgcontact(),t1.getRequestid());
 		}
 		else {
+			t1.setReasonforreject((String)map.get("reasonforreject"));
 			travelplanrequestrepository.requestStatusBasedOnReqid1(t1.getAdminstatus(),t1.getReasonforreject(),t1.getRequestid());
 		}
 		return null;
 	}
 	
-	@PostMapping("getuserbyid")
-	public User getuserbyid(@RequestBody User user,HttpServletRequest request) {
-		if(checkadminsession1(request) == null ) {
+	@PostMapping("/getuserbyid")
+	public User getuserbyid(@RequestBody Object obj,HttpServletRequest request) throws JsonMappingException, JsonProcessingException {
+		Map<String,Object> map = (Map<String,Object>)obj;
+		if(checkadminsession1(map.get("customerdata")) == null ) {
 			return null;
 		}
-	return userrepository.getUserById(user.getId());	
+	return userrepository.getUserById((Integer)map.get("id"));	
 	}
 	
 	@PostMapping("/hoteladminapprovel")
-	public Integer hoteladminapprovel(@RequestBody HotelAdmin ha, HttpServletRequest request) throws Exception{
-		if(checkadminsession1(request) == null ) {
+	public Integer hoteladminapprovel(@RequestBody Object obj) throws Exception{
+		Map<String,Object> map = (Map<String,Object>)obj;
+		if(checkadminsession1(map.get("customerdata")) == null ) {
 			return null;
 		}
+		HotelAdmin ha = new HotelAdmin();
+		ha.setEmail((String)map.get("email"));
+		ha.setContact((Long)map.get("contact"));
+		ha.setCity((String)map.get("city"));
+		ha.setHotelimageinbytes((String)map.get("hotelimageinbytes"));
+		ha.setName((String)map.get("name"));
+		ha.setId((Integer)map.get("id"));
+		ha.setPassword((String)map.get("password"));
+		ha.setSex((String)map.get("sex"));
+		ha.setState((String)map.get("state"));
 		ha.setStatus(1);
+		ha.setCountry((String)map.get("country"));
+		ha.setHotelname((String)map.get("hotelname"));
 		hoteladminrepository.save(ha);
 		String subject = "Notification: Account Approved for Tourisum.jfsd.sdp.com";
 		String htmlcontent ="<p><strong>Admin Approved your Account you can login now with your details</strong> </p>" +
@@ -198,18 +257,29 @@ public class AdminController {
 		return 1;
 	}
 	
-	@GetMapping("/getallusers")
-	public List<User> getallusers(HttpServletRequest request){
-		if(checkadminsession1(request) == null ) {
+	@PostMapping("/getallusers")
+	public List<User> getallusers(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException{
+		if(checkadminsession1(obj) == null ) {
 			return null;
 		}
 		return userrepository.findAll();
 	}
+	
 	@PostMapping("/deleteuserbyid")
-	public Integer deleteuserbyid(@RequestBody User user,HttpServletRequest request)throws Exception {
-		if(checkadminsession1(request) == null ) {
+	public Integer deleteuserbyid(@RequestBody Object obj)throws Exception {
+		Map<String,Object> map = (Map<String,Object>)obj;
+		if(checkadminsession1(map.get("customerdata")) == null ) {
 			return null;
 		}
+		
+		User user = new User();
+		user.setContact((Long)map.get("contact"));
+		user.setEmail((String)map.get("email"));
+		user.setId((Integer)map.get("id"));
+		user.setPassword((String)map.get("password"));
+		user.setSex((String)map.get("sex"));
+		user.setName((String)map.get("name"));
+		user.setUserimageinbytes((String)map.get("userimageinbytes"));
 		User user2 = userrepository.findById(user.getId()).get();
 		if(user2 == null) {
 			return 0; // account not available 
@@ -241,18 +311,31 @@ public class AdminController {
 		sendmail(user.getEmail(), subject, htmlcontent);
 		return 1;//successfully deleated
 	}
-	@GetMapping("/getallhoteladmins")
-	public List<HotelAdmin> getallhoteladmins(HttpServletRequest request){
-		if(checkadminsession1(request) == null ) {
+	@PostMapping("/getallhoteladmins")
+	public List<HotelAdmin> getallhoteladmins(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException{
+		if(checkadminsession1(obj) == null ) {
 			return null;
 		}
 		return hoteladminrepository.findAll();
 	}
 	@PostMapping("/deletehoteladminbyid")
-	public Integer deletehoteladminbyid(@RequestBody HotelAdmin ha,HttpServletRequest request) throws Exception{
-		if(checkadminsession1(request) == null ) {
+	public Integer deletehoteladminbyid(@RequestBody Object obj) throws Exception{
+		//{id=4, name=Mannava Kamal, email=2200032973@kluniversity.in, password=Kamal@812004, sex=Male, contact=9393801998, country=India, state=Andhrapradesh, city=Guntur, hotelname=Mannava Kamal Hotels, hotelimageinbytes=data:i
+		Map<String,Object> map = (Map<String,Object>)obj;
+		if(checkadminsession1(map.get("customerdata")) == null ) {
 			return null;
 		}
+		HotelAdmin ha = new HotelAdmin();
+		ha.setEmail((String)map.get("email"));
+		ha.setContact((Long)map.get("contact"));
+		ha.setCity((String)map.get("city"));
+		ha.setHotelimageinbytes((String)map.get("hotelimageinbytes"));
+		ha.setName((String)map.get("name"));
+		ha.setId((Integer)map.get("id"));
+		ha.setPassword((String)map.get("password"));
+		ha.setSex((String)map.get("sex"));
+		ha.setStatus((Integer)map.get("status"));
+		ha.setState((String)map.get("state"));
 		HotelAdmin ha1 = hoteladminrepository.findById(ha.getId()).get();
 		if(ha1 == null) {
 			return 0; // account not available 
@@ -289,28 +372,28 @@ public class AdminController {
 	}
 
 	
-	@GetMapping("/adminlogout")
-	public void adminlogout(HttpServletRequest request) {
-		HttpSession session = request.getSession();
-		session.removeAttribute("admindetails");
-	}
-	
-	@Scheduled(fixedDelay = 600000)
-	public void deleteroom_shedule() {
-		LocalDateTime localDateTime = LocalDateTime.now();
-	      ZonedDateTime istZonedDateTime = localDateTime.atZone(ZoneId.systemDefault())
-                  .withZoneSameInstant(ZoneId.of("Asia/Kolkata"));
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
-        String formattedDateTime = istZonedDateTime.format(formatter);
-        LocalDateTime dateTime1 = LocalDateTime.parse(formattedDateTime, formatter);// current IST time
-		List<RoomSchedule> l1 =  roomschedulerepository.findAll();
-		for(RoomSchedule rs : l1) {
-			LocalDateTime dateTime2 = LocalDateTime.parse(rs.getCheckouttime(), formatter); // checkouttime in database
-			if (dateTime2.isBefore(dateTime1)) {
-	          roomschedulerepository.deleteById(rs.getOrderid());
-	        }
-		}
-	}
+//	@GetMapping("/adminlogout")
+//	public void adminlogout(HttpServletRequest request) {
+//		HttpSession session = request.getSession();
+//		session.removeAttribute("admindetails");
+//	}
+//	
+//	@Scheduled(fixedDelay = 600000)
+//	public void deleteroom_shedule() {
+//		LocalDateTime localDateTime = LocalDateTime.now();
+//	      ZonedDateTime istZonedDateTime = localDateTime.atZone(ZoneId.systemDefault())
+//                  .withZoneSameInstant(ZoneId.of("Asia/Kolkata"));
+//        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
+//        String formattedDateTime = istZonedDateTime.format(formatter);
+//        LocalDateTime dateTime1 = LocalDateTime.parse(formattedDateTime, formatter);// current IST time
+//		List<RoomSchedule> l1 =  roomschedulerepository.findAll();
+//		for(RoomSchedule rs : l1) {
+//			LocalDateTime dateTime2 = LocalDateTime.parse(rs.getCheckouttime(), formatter); // checkouttime in database
+//			if (dateTime2.isBefore(dateTime1)) {
+//	          roomschedulerepository.deleteById(rs.getOrderid());
+//	        }
+//		}
+//	}
 	public void sendmail(String destinationemail,String subject,String htmlContent)throws Exception {
 		try {
 		MimeMessage mimeMessage = mailSender.createMimeMessage();

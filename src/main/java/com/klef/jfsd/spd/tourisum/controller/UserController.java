@@ -1,28 +1,28 @@
 package com.klef.jfsd.spd.tourisum.controller;
 
 
-import java.text.ParseException;
-
-
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.TimeZone;
 
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.expression.ParseException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.klef.jfsd.spd.tourisum.model.HotelAdmin;
 import com.klef.jfsd.spd.tourisum.model.RoomSchedule;
 import com.klef.jfsd.spd.tourisum.model.Rooms;
@@ -32,10 +32,8 @@ import com.klef.jfsd.spd.tourisum.model.paymentdetails;
 import com.klef.jfsd.spd.tourisum.model.touristSpot;
 import com.klef.jfsd.spd.tourisum.repository.AdminRepository;
 import com.klef.jfsd.spd.tourisum.repository.HotelAdminRepository;
-import com.klef.jfsd.spd.tourisum.repository.PaymentRepository;
 import com.klef.jfsd.spd.tourisum.repository.RoomScheduleRepository;
 import com.klef.jfsd.spd.tourisum.repository.RoomsRepository;
-import com.klef.jfsd.spd.tourisum.repository.TouristSpotRepository;
 import com.klef.jfsd.spd.tourisum.repository.TravelPlanRequestRepository;
 import com.klef.jfsd.spd.tourisum.repository.UserRepository;
 import com.klef.jfsd.spd.tourisum.service.UserService;
@@ -82,50 +80,56 @@ public class UserController {
     		return null;
     	}
     }
-    @GetMapping("/checkusersession1")
-    public User checkusersession1(HttpServletRequest request) {
+    @PostMapping("/checkusersession1")
+    public User  checkusersession1(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException {  // the jwtkeys will in this
+    	//v1
+ //   	  public User checkusersession1(HttpServletRequest request) {
+//    	HttpSession session = request.getSession();
+//    	User user1 = (User)session.getAttribute("user");
+//    	if(user1!=null) {
+//    		return user1;
+//    	}else {
+//    		return null;
+//    	}
+    	// version2
+    	 Map<String, String> map = (Map<String, String>) obj;
+    	 ObjectMapper mapper = new ObjectMapper();
+         return (User)mapper.readValue((String)JwtStorage.getObject(map), User.class);
+    	 
     	
-    	HttpSession session = request.getSession();
-    	User user1 = (User)session.getAttribute("user");
-    	if(user1!=null) {
-    		return user1;
-    	}else {
-    		return null;
-    	}
+    	
     }
 
     @GetMapping("/checkusersignupsession")
-    public User checkusersignupsession(HttpServletRequest request) {
-    	HttpSession session = request.getSession();
-    	User user = (User)session.getAttribute("usersignup");
+    public User checkusersignupsession(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException {
+    	Map<String, String> map = (Map<String, String>) obj;
+   	 ObjectMapper mapper = new ObjectMapper();         
+    User user = (User)mapper.readValue((String)JwtStorage.getObject(map), User.class);
     	if(user!=null) {
     		return user;
     	}else {
     		return null;
     	}
     }
-    @GetMapping("/removeusersignupsession")
-    public void removeusersession(HttpServletRequest request) {
-    	HttpSession session = request.getSession();    	
-    	session.removeAttribute("usersignup");
-    }
+//    @GetMapping("/removeusersignupsession")
+//    public void removeusersession(HttpServletRequest request) {
+//    	HttpSession session = request.getSession();    	
+//    	session.removeAttribute("usersignup");
+//    }
     @PostMapping("/UserSignup")
-    public String  usersignup(@RequestBody User user,HttpServletRequest request) throws Exception {
+    public Map<String,String>  usersignup(@RequestBody User user) throws Exception {
+    	Map<String,String> map1 = new HashMap<>();
     	try {
     	if(userrepo.checkUserByEmail(user.getEmail())!=null || hoteladminrepo.checkHotelAdminByEmail(user.getEmail())!=null || adminrepo.checkAdminByEmail(user.getEmail())!=null) {
-			return "2";
+    		 map1.put("status", "2");
+ 			return map1;
 		}					
-    	HttpSession session =  request.getSession();
-    	session.removeAttribute("hoteladmindetails");
-    	session.removeAttribute("pay");
-    	session.removeAttribute("admindetails");
-    	session.removeAttribute("user");    	
-    	session.setMaxInactiveInterval(600);
-    	session.setAttribute("usersignup", user);
+    	Map<String,Object> map = new HashMap<>();
+    	map.put("user",user);
     	MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);        
         int otp = (int)(Math.random() * 99999); // random number generation
-        session.setAttribute("otpuser", otp);
+        map.put("otp", otp);        
         helper.setTo(user.getEmail());
         helper.setSubject("OTP from Tourisum.jfsd.sdp.com");
         helper.setFrom("mannava.kamal@gmail.com");
@@ -133,49 +137,60 @@ public class UserController {
         "<p><strong>OTP:</strong> " + otp + "</p>" +
         "<p><strong>Note:</strong>" + "this otp expires in 10 minutes"+ " </p>";
         helper.setText(htmlContent, true);
-        mailSender.send(mimeMessage);    	
-		return "1";
+        mailSender.send(mimeMessage);  
+        map1 = JwtStorage.storeObject(map);
+       map1.put("status", "1");
+		return map1;
 		}
     	catch(Exception ex) {
     		System.out.println(ex.getMessage());
-    		return ex.getMessage();
+    		 map1.put("status", "1");
+    			return map1;
     	}
     }
     
     @PostMapping("/checkotpuser")
-	public String checkotp(@RequestBody User user,HttpServletRequest request) throws Exception  {		
-		if (checkusersignupsession(request)==null)
+	public String checkotp(@RequestBody Object obj) throws Exception  {
+    	Map<String,Object> map = (Map<String,Object>)obj;
+    	Object obj2 = JwtStorage.getObject((Map<String,String>)map.get("usersignup"));
+    	 String var2 = (String)obj2;
+    	 ObjectMapper mapper = new ObjectMapper();
+    	 Map<String,Object> map1 = mapper.readValue(var2, Map.class);
+    	 
+    User user = mapper.convertValue(map1.get("user"), User.class);
+		if (user==null)
 		{
 			return null;
-		}
-		HttpSession session = request.getSession();
-    	User user2 = (User)session.getAttribute("usersignup");
-    	int otp = (int)session.getAttribute("otpuser");
-    	if( user.getId()==otp) {
-    		userservice.usersignup(user2);
-    		session.removeAttribute("otpuser");
-    		session.removeAttribute("usersignup");
+		}	
+    	int otpfromjwt = (Integer)map1.get("otp");
+    	int optfromfrontend = (Integer)map.get("id");
+    	if( optfromfrontend ==otpfromjwt) {
+    		userservice.usersignup(user);
       return "1";
     	}
-    	return "0";	
+    	return "0";
 	}
 
-    @GetMapping("/UserProfile")
-    public User userprofile(HttpServletRequest request) {
-    	User u1 = checkusersession1(request);
-    	if (u1!=null) {
-    		return u1;
-    	}else {
-    		return null;
-    	}
-    }
-    
-    @PostMapping("postuserbyid")
-	public User getuserbyid(@RequestBody User user,HttpServletRequest request) {
-    	User user2 = checkusersession1(request);
+//    @GetMapping("/UserProfile")
+//    public User userprofile(HttpServletRequest request) {
+//    	User u1 = checkusersession1(request);
+//    	if (u1!=null) {
+//    		return u1;
+//    	}else {
+//    		return null;
+//    	}
+//    }
+//    
+    @PostMapping("/postuserbyid")
+	public User getuserbyid(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException {
+    	
+    	Map<String,Object> map = (Map<String,Object>)obj;
+    	User user2 = checkusersession1(map.get("customerdata"));
 		if(user2 == null ) {
 			return null;
 		}
+		User user = new User();
+		user.setId((Integer)map.get("id"));
 		if(user.getId() != user2.getId()) {
 			user.setName("");
 			return user;
@@ -187,14 +202,18 @@ public class UserController {
 		}
 	return  user;
 	}
+    
     @PostMapping("/userprofileupdate")
-    public Integer userprofileupdate(@RequestBody User user1, HttpServletRequest request)
+    public Integer userprofileupdate(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException
     {
-    	User user = checkusersession1(request);
+    	Map<String,Object> map = (Map<String,Object>)obj;
+    	User user = checkusersession1(map.get("customerdata"));
     	if(user==null) {
     		return null;
     	}
-    	System.out.println("in profile update");
+    	ObjectMapper mapper = new ObjectMapper(); 	    
+    	User user1 = mapper.convertValue(map.get("User"), User.class);
+    	
         User user2 = userrepo.findById(user1.getId()).get();
         if(user2 == null) {
         	return 0;
@@ -206,11 +225,13 @@ public class UserController {
         userrepo.save(user2);
     	return 1;
     }
+    
    // getLoation is also a part of user
     @GetMapping("/getLocationsForUser")
-	public List<touristSpot> getLocations(HttpServletRequest request){
+	public List<touristSpot> getLocations(){
 		return userservice.getallspots();
 	}
+	
 	@PostMapping("/GetAllHotels")
 	public List<HotelAdmin> getallhotels(@RequestBody HotelAdmin h1){
 		return userservice.getAllHotels(h1.getCountry(), h1.getState(), h1.getCity());
@@ -221,15 +242,20 @@ public class UserController {
 	}
 	
 	@PostMapping("/pay")
-	public TravelPlanRequest pay(@RequestBody TravelPlanRequest t1,HttpServletRequest request) throws RazorpayException {
-	User user = checkusersession1(request);
+	public Map<String,Object> pay(@RequestBody Object obj) throws RazorpayException, JsonMappingException, JsonProcessingException {
+		
+		TravelPlanRequest t1 = new TravelPlanRequest();
+		Map<String,Object> map  = (Map<String,Object>)obj;
+		
+		Map<String,Object> map3= (Map<String,Object>)map.get("travelplanreqquest");
+		t1.setRequestid((Integer)map3.get("requestid"));
+		t1.setAmount((Integer) map3.get("amount"));
+		
+	User user = checkusersession1( map.get("customerdata"));
 	if(user == null){
 		return null;
 	}
-	HttpSession session = request.getSession();
-	session.setMaxInactiveInterval(3600);
-		System.out.println(t1.getAmount());
-		System.out.println(t1.toString());
+		
 		RazorpayClient razorpay = new RazorpayClient("rzp_test_dPcBqV32stqs3P", "dWUhjTk5EDiM0FoE1lmEce9l");
 		JSONObject orderRequest = new JSONObject();
 		orderRequest.put("amount",t1.getAmount());
@@ -238,19 +264,25 @@ public class UserController {
 		//Order order = razorpay.orders.fetch("order_PJ4OYZ2q3PE00S");
 		JSONObject orderResponse = order.toJson();		
 		t1.setStartdate(orderResponse.getString("id")); // order id
-     	session.setAttribute("pay",t1);
-     TravelPlanRequest t2 = (TravelPlanRequest)session.getAttribute("pay");    
-		return t2;
+     Map<String,String> map1 = JwtStorage.storeObject(t1); // travelplan request is stored in jwt
+     Map<String,Object> map2 = new HashMap<>();
+     map2.put("cred",map1);   // jwt details will be sent to frontend to store in local storage
+     map2.put("travelplanrequest", t1);
+		return map2;
 	}
-	@GetMapping("/paymentsuccessorfailure")
-	public Integer paymentsuccess(HttpServletRequest request) throws RazorpayException,ParseException
+	
+	@PostMapping("/paymentsuccessorfailure")
+	public Integer paymentsuccess(@RequestBody Object obj) throws RazorpayException,ParseException, JsonMappingException, JsonProcessingException
 	{ 
-		User user = checkusersession1(request);
+		Map<String,Object> map = (Map<String,Object>)obj;
+		Map<String,String> map1 =(Map<String,String>)map.get("paymentCredentials");
+		Map<String,String> map2 =(Map<String,String>)map.get("customerdata");
+		User user = checkusersession1(map2);
 		if(user == null){
 			return null;
 		}
-		HttpSession session = request.getSession();
-		TravelPlanRequest t1 = (TravelPlanRequest)session.getAttribute("pay");
+		  ObjectMapper mapper = new ObjectMapper();     	
+		TravelPlanRequest t1 = mapper.readValue((String)JwtStorage.getObject(map1), TravelPlanRequest.class);
 		RazorpayClient razorpay = new RazorpayClient("rzp_test_dPcBqV32stqs3P", "dWUhjTk5EDiM0FoE1lmEce9l");
 		if(t1!=null) {
 		Order order = razorpay.orders.fetch(t1.getStartdate());
@@ -259,7 +291,7 @@ public class UserController {
 				if(status == 0 ) {
 					paymentdetails details = new paymentdetails();
 					
-		 LocalDateTime now = LocalDateTime.now();
+		 LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
 	        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm:ss a");	        
 	        details.setDate(now.format(formatter));
 	        details.setOrderid(t1.getStartdate());// orderid
@@ -267,7 +299,7 @@ public class UserController {
 	        userservice.addpayment(details);  
 	        //userservice.updateRoomAvailableAndUserIdBySno(user.getId(),now.format(formatter), pay.getRoom_sno());	
 	        travelplanrequestrepository.updatePaymentStatusBasedOnReqid(1, t1.getRequestid());
-		session.removeAttribute("pay");
+		
 		return 1;
 				}
 					 LocalDateTime now = LocalDateTime.now();
@@ -278,7 +310,7 @@ public class UserController {
 				        details.setUserid(user.getId());
 				        userservice.addpayment(details);
 				        travelplanrequestrepository.updatePaymentStatusBasedOnReqid(2, t1.getRequestid());
-				        session.removeAttribute("pay");
+				        
 				        return 0;
 		}
 		
@@ -287,42 +319,59 @@ public class UserController {
 	}
 	
 	@PostMapping("/pay1")
-	public RoomSchedule pay1(@RequestBody RoomSchedule rs,HttpServletRequest request) throws RazorpayException {
-	User user = checkusersession1(request);
+	public Map<String,Object>  pay1(@RequestBody Object obj ) throws RazorpayException, JsonMappingException, JsonProcessingException {
+		
+		Map<String,Object> map = (Map<String,Object>)obj;
+		
+	User user = checkusersession1((Map<String,String>)map.get("customerdata"));
 	if(user == null){
 		return null;
 	}
-	HttpSession session = request.getSession();
-	session.setMaxInactiveInterval(3600);
-		System.out.println(rs.getOrderid());
-		System.out.println(rs.toString());
+	
+	RoomSchedule rs = new RoomSchedule();
+	rs.setOrderid((Integer)map.get("orderid"));
+	rs.setHoteladminid((Integer)map.get("hoteladminid"));
+	rs.setRoomid((Integer)map.get("roomid"));
+	rs.setCheckintime((String)map.get("checkintime"));	
+	rs.setCheckouttime((String)map.get("checkouttime"));
+	
+	
+	
+		
 		RazorpayClient razorpay = new RazorpayClient("rzp_test_dPcBqV32stqs3P", "dWUhjTk5EDiM0FoE1lmEce9l");
 		JSONObject orderRequest = new JSONObject();
 		orderRequest.put("amount",rs.getOrderid());
 		orderRequest.put("currency","INR");
 		Order order = razorpay.orders.create(orderRequest);
 		//Order order = razorpay.orders.fetch("order_PJ4OYZ2q3PE00S");
-		JSONObject orderResponse = order.toJson();	
-     	session.setAttribute("pay1",rs);
-     	session.setAttribute("orderid", orderResponse.getString("id"));
-     	RoomSchedule rs2 = new RoomSchedule();
-		rs2.setCheckintime(orderResponse.getString("id"));
-		return rs2;
+		JSONObject orderResponse = order.toJson();	    	
+		rs.setDate(orderResponse.getString("id"));  
+		 Map<String,String> map1 = JwtStorage.storeObject(rs); // travelplan request is stored in jwt
+	     Map<String,Object> map2 = new HashMap<>();
+	     map2.put("cred",map1);   // jwt details will be sent to frontend to store in local storage
+	     map2.put("roomschedule", rs);
+			return map2;
+		
 	}
 	
-	@GetMapping("/paymentsuccessorfailure1")
-	public Integer paymentsuccess1(HttpServletRequest request) throws RazorpayException,ParseException
+	@PostMapping("/paymentsuccessorfailure1")
+	public Integer paymentsuccess1(@RequestBody Object obj) throws RazorpayException,ParseException, JsonMappingException, JsonProcessingException
 	{ 
-		User user = checkusersession1(request);
+		Map<String,Object> map = (Map<String,Object>)obj;
+		Map<String,String> map1 =(Map<String,String>)map.get("paymentCredentials1");
+		Map<String,String> map2 =(Map<String,String>)map.get("customerdata");
+		User user = checkusersession1(map2);
+		
 		if(user == null){
 			return null;
 		}
-		HttpSession session = request.getSession();
-		RoomSchedule rs = (RoomSchedule)session.getAttribute("pay1");
+		ObjectMapper mapper = new ObjectMapper();     	
+		RoomSchedule rs = mapper.readValue((String)JwtStorage.getObject(map1), RoomSchedule.class);
+		
 		rs.setOrderid(0);
 		rs.setUserid(user.getId());
 		
-		String orderid = (String)session.getAttribute("orderid");
+		String orderid = rs.getDate();
 		RazorpayClient razorpay = new RazorpayClient("rzp_test_dPcBqV32stqs3P", "dWUhjTk5EDiM0FoE1lmEce9l");
 		Order order = razorpay.orders.fetch(orderid);
 				JSONObject orderResponse = order.toJson();
@@ -336,9 +385,8 @@ public class UserController {
 	        details.setOrderid(orderid);// orderid
 	        details.setUserid(user.getId());
 	        userservice.addpayment(details);
-	        System.out.println(rs.toString());
-	        roomschedulerepository.save(rs);
-		session.removeAttribute("pay1");
+	      
+	        roomschedulerepository.save(rs);		
 		return 1;
 				}
 					 LocalDateTime now = LocalDateTime.now();
@@ -348,15 +396,15 @@ public class UserController {
 					  details.setOrderid(orderid);// orderid
 				        details.setUserid(user.getId());
 				        userservice.addpayment(details);
-				        session.removeAttribute("pay1");
 				        return 0;
 								
 	}
 	
-	@GetMapping("/paymentdetails")
-	public List<Pay> paymentdetails(HttpServletRequest request) throws RazorpayException, ParseException 
+	@PostMapping("/paymentdetails")
+	public List<Pay> paymentdetails(@RequestBody Object obj) throws RazorpayException, ParseException, JsonMappingException, JsonProcessingException 
 	{
-		User user1 = checkusersession1(request);
+		
+		User user1 = checkusersession1((Map<String,String>)obj);
 		if(user1 == null) {
 			return null;
 		}
@@ -389,8 +437,22 @@ public class UserController {
 
 	
 	@PostMapping("/getrequest")
-	public Integer getrequest(@RequestBody TravelPlanRequest r1 ,HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public Integer getrequest(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		//v1
+		//public Integer getrequest(@RequestBody TravelPlanRequest r1 ,HttpServletRequest request) { 
+		//User user = checkusersession1(request);
+	
+		Map<String,Object> map  = (Map<String,Object>)obj;
+		Map<String,String> map1 =(Map<String, String>) map.get("customerdata");
+	                 TravelPlanRequest r1  = new TravelPlanRequest();
+	                 r1.setStartdate((String)map.get("startdate"));
+	                 r1.setNoofpersons((Integer)map.get("noofpersons"));
+	                 r1.setListoflocations((String)map.get("listoflocations"));
+	                 
+    	 ObjectMapper mapper = new ObjectMapper();
+    	 
+      User user = (User)mapper.readValue((String)JwtStorage.getObject(map1), User.class);
+		
 		if(user == null){
 			return null;
 		}
@@ -398,18 +460,24 @@ public class UserController {
 		travelplanrequestrepository.save(r1);
 		return 1;// request created
 	}
-	@GetMapping("/myrequests")
-	public List<TravelPlanRequest> myrequests(HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	@PostMapping("/myrequests")
+	public List<TravelPlanRequest> myrequests(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		
+		
+		User user = checkusersession1(obj);
 		if(user == null){
 			return null;
 		}
 		return travelplanrequestrepository.getrequestsbyid(user.getId());
 		//return null;
 	}
+	
 	@PostMapping("/paymentreject")
-	public Integer paymentreject(@RequestBody TravelPlanRequest t1, HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public Integer paymentreject(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		TravelPlanRequest t1 = new TravelPlanRequest();
+		Map<String,Object> map = (Map<String,Object>)obj;
+		t1.setRequestid((Integer)map.get("requestid"));		
+		User user = checkusersession1((Map<String,String>)map.get("customerdata"));
 		if(user == null){
 			return null;
 		}
@@ -417,8 +485,11 @@ public class UserController {
 		//return null;
 	}
 	@PostMapping("/travelplancancel")
-	public String travelplancancel(@RequestBody TravelPlanRequest t1, HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public String travelplancancel(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		TravelPlanRequest t1 = new TravelPlanRequest();
+		Map<String,Object> map = (Map<String,Object>)obj;
+		t1.setRequestid((Integer)map.get("requestid"));
+		User user = checkusersession1((Map<String,String>)map.get("customerdata"));
 		if(user == null){
 			return null;
 		}
@@ -426,71 +497,80 @@ public class UserController {
 		return "1";
 		//return null;
 	}
-	
+
 	@PostMapping("/roomidbasedonhoteladminid")
-	public List<RoomSchedule> roomidbasedonhoteladminid(@RequestBody RoomSchedule rs, HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public List<RoomSchedule> roomidbasedonhoteladminid(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		Map<String,Object> map = (Map<String,Object>)obj;
+		
+		User user = checkusersession1((Map<String,String>)map.get("customerdata"));
 		if(user == null){
 			return null;
 		}		
-		return roomschedulerepository.roomidbasedonhoteladminid(rs.getHoteladminid());
+		return roomschedulerepository.roomidbasedonhoteladminid((Integer)map.get("hoteladminid"));
 	}
-	@GetMapping("/roombookingsbasedonuserid")
-	public List<RoomSchedule> roomidbasedonuserid( HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	
+	@PostMapping("/roombookingsbasedonuserid")
+	public List<RoomSchedule> roomidbasedonuserid(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException {
+		
+		User user = checkusersession1((Map<String,String>)obj);
 		if(user == null){
 			return null;
 		}		
 		return roomschedulerepository.roomidbasedonuserid(user.getId());
 	}
+	
 	@PostMapping("/gethoteladminbyid")
-	public HotelAdmin gethoteladminbyid(@RequestBody HotelAdmin ha, HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public HotelAdmin gethoteladminbyid(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		Map<String,Object> map = (Map<String,Object>)obj;
+		User user = checkusersession1((Map<String,String>)map.get("customerdata"));
 		if(user == null){
 			return null;
 		}	
-	Optional<HotelAdmin> ha2 =	hoteladminrepo.findById(ha.getId());
+	Optional<HotelAdmin> ha2 =	hoteladminrepo.findById((Integer)map.get("id"));
 		return ha2.get();
 	}
 	
 	@PostMapping("/getroombyid")
-	public Rooms getroombyid(@RequestBody Rooms r1, HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public Rooms getroombyid(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		Map<String,Object> map = (Map<String,Object>)obj;
+		User user = checkusersession1((Map<String,String>)map.get("customerdata"));
+		
 		if(user == null){
 			return null;
 		}	
-	Optional<Rooms> r2 =	roomsrepository.findById(r1.getSno());
+	Optional<Rooms> r2 =	roomsrepository.findById((Integer)map.get("sno"));
 		return r2.get();
 	}
 	@PostMapping("/cancelroomschedule")
-	public String cancelroomschedule(@RequestBody RoomSchedule rs1, HttpServletRequest request) { 
-		User user = checkusersession1(request);
+	public String cancelroomschedule(@RequestBody Object obj) throws JsonMappingException, JsonProcessingException { 
+		Map<String,Object> map = (Map<String,Object>)obj;
+		User user = checkusersession1((Map<String,String>)map.get("customerdata"));
 		if(user == null){
 			return null;
 		}	
-      roomschedulerepository.deleteById(rs1.getOrderid());
+      roomschedulerepository.deleteById((Integer)map.get("orderid"));
 		return "1";
 	}
 	
-	
-	@GetMapping("/logout")// removing the session attribute
-	public void logout(HttpServletRequest request) {
-		
-		if (checkusersession1(request)!=null) {
-			HttpSession session = request.getSession();
-			session.removeAttribute("user");
-		}
-		
-	}
-	
-	// in session the session is unique for browser 
+//	
+//	@GetMapping("/logout")// removing the session attribute
+//	public void logout(HttpServletRequest request) {
+//		
+//		if (checkusersession1(request)!=null) {
+//			HttpSession session = request.getSession();
+//			session.removeAttribute("user");
+//		}
+//		
+//	}
+//	
+//	// in session the session is unique for browser 
 	@PostMapping("/dateandtime")
 	public Pay dateandtime(@RequestBody Pay datetime) {
-		System.out.println(datetime.getSno()+" "+datetime.getUserid()+" "+datetime.getRoom_sno()+" "+datetime.getRoomno()+" "+datetime.getAmount());
+
 		LocalDateTime customDateTime = LocalDateTime.of(datetime.getSno(), datetime.getUserid(), datetime.getRoom_sno(),datetime.getRoomno(),(int) datetime.getAmount());
-		  System.out.println("Updated Date and Time (+5 hours): " + customDateTime.toString());
+		  
       LocalDateTime updatedDateTime = customDateTime.plusHours(datetime.getAmountPaid());
-      System.out.println("Updated Date and Time (+5 hours): " + updatedDateTime.toString());
+      
       datetime.setOrderid(customDateTime.toString());
       datetime.setStatus(updatedDateTime.toString());
       return datetime;
@@ -499,7 +579,8 @@ public class UserController {
 
 
 // to take amount from frontend
-class Pay{
+class Pay implements java.io.Serializable{
+	 private static final long serialVersionUID = 1L;
 	 private int sno;
 	 private int userid;
 	 private String orderid; 

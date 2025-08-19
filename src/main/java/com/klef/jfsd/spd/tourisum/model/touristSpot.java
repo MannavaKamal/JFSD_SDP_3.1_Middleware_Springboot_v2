@@ -10,7 +10,8 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name="tourist_spots")
-public class touristSpot {
+public class touristSpot implements java.io.Serializable{
+	 private static final long serialVersionUID = 1L;
 	
 	 @Id
 	 @GeneratedValue(strategy = GenerationType.IDENTITY) // you can take this manually also through form

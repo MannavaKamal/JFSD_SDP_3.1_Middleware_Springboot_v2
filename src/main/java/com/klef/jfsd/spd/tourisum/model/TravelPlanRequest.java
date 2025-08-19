@@ -2,8 +2,8 @@ package com.klef.jfsd.spd.tourisum.model;
 
 @jakarta.persistence.Entity
 @jakarta.persistence.Table(name="TravelPlanRequest_Table")
-public class TravelPlanRequest {
-
+public class TravelPlanRequest implements java.io.Serializable {
+	 private static final long serialVersionUID = 1L;
 	@jakarta.persistence.Id
 	@jakarta.persistence.GeneratedValue(strategy=jakarta.persistence.GenerationType.IDENTITY)
 	@jakarta.persistence.Column(name="req_id")
@@ -156,6 +156,17 @@ public class TravelPlanRequest {
 	public void setUserid(int userid) {
 		this.userid = userid;
 	}
+
+	@Override
+	public String toString() {
+		return "TravelPlanRequest [requestid=" + requestid + ", listoflocations=" + listoflocations + ", startdate="
+				+ startdate + ", noofpersons=" + noofpersons + ", adminstatus=" + adminstatus + ", reasonforreject="
+				+ reasonforreject + ", amount=" + amount + ", rezorpaymentstatus=" + rezorpaymentstatus
+				+ ", paymentstatus=" + paymentstatus + ", tgname=" + tgname + ", tgcontact=" + tgcontact + ", userid="
+				+ userid + "]";
+	}
+	
+	
 	
 	
 }
